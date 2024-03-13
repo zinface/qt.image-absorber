@@ -1,4 +1,5 @@
 
+#include "global.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
@@ -9,86 +10,82 @@
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QUuid>
+#include <QVariant>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
   , ui(new Ui::MainWindow)
-  , h_absorber(QStandardPaths::locate(QStandardPaths::PicturesLocation, QString(), QStandardPaths::LocateDirectory) + "image-absorber")
-  , mut(false)
 {
     ui->setupUi(this);
-    ui->statusbar->addWidget(&status);
     ui->hpreview->addAction(ui->chagneStorePath);
-    status.setTextInteractionFlags(Qt::TextInteractionFlag::TextSelectableByMouse);
 
-// 存储位置
-    h_absorber.mkdir(h_absorber.path());
-    setStatus("存储位置: " + h_absorber.path()+"\n"+"当前状态: 仅预览");
+    QDir(GL.storeDir()).mkpath(".");
+    setWindowTitle("当前状态: 仅预览");
+    ui->statusbar->showMessage(QString("存储位置: %1").arg(GL.storeDir()));
 
-    clipboard = qApp->clipboard();  // 开始监控程序
-    connect(clipboard, &QClipboard::changed, this, &MainWindow::clipboardChanged);
+    // 剪贴板信号
+    clipboard = qApp->clipboard();
+    connect(clipboard, &QClipboard::dataChanged, this, &MainWindow::slotClipboardDataChanged);
+
+    manager = new ClipboardManager;
+    manager->start();
+    connect(manager, &ClipboardManager::onRequestPreviewImage, this, &MainWindow::slotOnRequestPreviewImage);
+    connect(manager, &ClipboardManager::onRequestSaveImage, this, &MainWindow::slotOnRequestSaveImage);
+
 }
 MainWindow::~MainWindow()
 {
 
 }
 
-QString MainWindow::getStatus() const
-{
-    return status.text();
-}
-
-void MainWindow::setStatus(const QString &value)
-{
-    status.setText(value);
-}
-
-void MainWindow::clipboardChanged()
+void MainWindow::slotClipboardDataChanged()
 {
     // 查看剪切版中是否有图片信息
-    const QMimeData *mime= clipboard->mimeData();
+    const QMimeData *mime = clipboard->mimeData();
     if (mime->hasImage()) {
-        // 从剪切板中取出一张图
-        QImage image = clipboard->image();
 
-        // 存储为缓冲
-        QByteArray imageData;
-        QBuffer buffer(&imageData);
-        image.save(&buffer, "png");
+        m_etimer.restart();
+        QPixmap pixmap = qvariant_cast<QPixmap>(mime->imageData());
 
-        // 历史图缓冲
-        QByteArray m_imageData;
-        QBuffer m_buffer(&m_imageData);
-        hisImage.save(&m_buffer, "png");
-
-        // 比较一次，如果与历史相同将直接跳过
-        if (m_imageData.compare(imageData) == 0) {
+        if (pixmap.isNull()) {
+            ui->statusbar->showMessage("空的！");
             return;
         }
 
-        // 存储到历史
-        hisImage = QPixmap::fromImage(image);
-        // 显示到预览
-        ui->hpreview->setPixmap(hisImage.scaled(ui->hpreview->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    }
-
-    updatePreviewImage(this->size());
-
-    if (mime->hasImage() && !ui->onlyPreview->isChecked()) {
-        show();
-        QString uuid = QUuid::createUuid().toString().remove("{").remove("}").remove("-");
-        QString savePath = QString("%1/%2.png").arg(h_absorber.path()).arg(uuid);
-        if (mut == true) return;
-        mut = true;
-
-//        savePath = QFileDialog::getSaveFileName(this,"存储为", savePath,"png files (*.png);;all files(*.*)");
-        qDebug() << savePath;
-        if (!savePath.isEmpty()) {
-            hisImage.save(savePath,"png");
+        if (pixmap.toImage() == hisImage.toImage()) {
+            ui->statusbar->showMessage("相同的！");
+            return;
         }
-        mut = false;
-    } else {
-        setStatus("当前状态: 仅预览");
+
+        hisImage = pixmap;
+        if (ui->onlyPreview->isChecked() == true) {
+            emit manager->requestPreviewImage(hisImage, ui->hpreview->size());
+        } else {
+            if (ui->noPreview->isChecked() == false) {
+                emit manager->requestPreviewImage(hisImage, ui->hpreview->size());
+            }
+            emit manager->requestSaveImage(hisImage);
+        }
+
+        return;
     }
+}
+
+void MainWindow::slotOnRequestPreviewImage(QPixmap pixmap)
+{
+    ui->hpreview->setPixmap(pixmap);
+
+    QString str = QString("本次消耗: %1 ms").arg(m_etimer.elapsed());
+    qDebug() << str;
+
+    ui->statusbar->showMessage(str);
+}
+
+void MainWindow::slotOnRequestSaveImage()
+{
+    QString str = QString("本次消耗: %1 ms").arg(m_etimer.elapsed());
+    qDebug() << str;
+
+    ui->statusbar->showMessage(str);
 }
 
 void MainWindow::updatePreviewImage(QSize size)
@@ -96,18 +93,18 @@ void MainWindow::updatePreviewImage(QSize size)
     int w = size.width();
     int h = size.height();
 
-    ui->hpreview->setMinimumSize(10, 10);
-    QPixmap imagePixmap = hisImage;
-    if (imagePixmap.isNull()) {
+    if (hisImage.isNull()) {
         return;
     }
 
+    m_etimer.restart();
+
     QPixmap temp;
     bool doScale = false;
-    if (imagePixmap.width() > w || imagePixmap.height() > h) {
-        temp = imagePixmap.scaled(w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    if (hisImage.width() > w || hisImage.height() > h) {
+        emit manager->requestPreviewImage(hisImage, ui->hpreview->size());
     } else {
-        temp = imagePixmap;
+        temp = hisImage;
     }
     ui->hpreview->setPixmap(temp);
 }
@@ -115,26 +112,25 @@ void MainWindow::updatePreviewImage(QSize size)
 void MainWindow::on_chagneStorePath_triggered()
 {
     qDebug() << __FUNCTION__;
-    QString dir = QFileDialog::getExistingDirectory(this, tr("存储位置"),
-                                                    h_absorber.path(),
+    QString dir = QFileDialog::getExistingDirectory(this, tr("存储位置"), GL.storeDir(),
                                                     QFileDialog::DontResolveSymlinks);
 
     if (!dir.isEmpty()) {
-        h_absorber.setPath(dir);
-        setStatus(QString("存储位置: %1").arg(dir));
+        GL.setStoreDir(dir);
+        ui->statusbar->showMessage(QString("存储位置: %1").arg(dir));
+    }
+}
+
+void MainWindow::on_onlyPreview_stateChanged(int arg1)
+{
+    if (ui->onlyPreview->isChecked()) {
+        setWindowTitle("当前状态: 仅预览");
+    } else {
+        setWindowTitle(QString("存储位置: %1").arg(GL.storeDir()));
     }
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     updatePreviewImage(event->size());
-}
-
-void MainWindow::on_onlyPreview_stateChanged(int arg1)
-{
-    if (ui->onlyPreview->isChecked()) {
-        setStatus("当前状态: 仅预览");
-    } else {
-        setStatus(QString("存储位置: %1").arg(h_absorber.path()));
-    }
 }

@@ -2,6 +2,8 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "clipboardmanager.h"
+
 #include <QClipboard>
 #include <QDir>
 #include <QLabel>
@@ -22,31 +24,29 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-    QString getStatus() const;
-    void setStatus(const QString &value);
-
 private:
     void updatePreviewImage(QSize size);
 
 private:
     QClipboard *clipboard;
     Ui::MainWindow *ui;
-    QPixmap hisImage;
-    QLabel status;
 
-    QDir h_absorber;
-    bool mut;
+    QPixmap hisImage;
+
+    ClipboardManager *manager;
+    QElapsedTimer m_etimer;
 
 public slots:
-    void clipboardChanged();
+    void slotClipboardDataChanged();
+    void slotOnRequestPreviewImage(QPixmap pixmap);
+    void slotOnRequestSaveImage();
     void on_chagneStorePath_triggered();
+    void on_onlyPreview_stateChanged(int arg1);
 
     // QWidget interface
 protected:
     void resizeEvent(QResizeEvent *event) override;
 
-private slots:
-    void on_onlyPreview_stateChanged(int arg1);
 };
 
 #endif // MAINWINDOW_H
