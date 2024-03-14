@@ -34,9 +34,9 @@ Priority: optional
 # 软件包依赖
 Depends: 
 # 软件包维护者(组织或个人)
-Maintainer: Individual developer <packages@email.com>
+Maintainer: zinface <zinface@163.com>
 # 软件包主页
-Homepage: 
+Homepage: https://gitee.com/zinface/qt.image-absorber
 # 软件包建议
 Recommends: 
 # 软件冲突
