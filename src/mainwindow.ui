@@ -120,6 +120,11 @@
     <string>改变存储路径</string>
    </property>
   </action>
+  <action name="actionCopyOriginPixmap">
+   <property name="text">
+    <string>复制原图</string>
+   </property>
+  </action>
  </widget>
  <resources>
   <include location="../sources.qrc"/>

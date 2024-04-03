@@ -17,6 +17,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 {
     ui->setupUi(this);
     ui->hpreview->addAction(ui->chagneStorePath);
+    ui->hpreview->addAction(ui->actionCopyOriginPixmap);
 
     QDir(GL.storeDir()).mkpath(".");
     setWindowTitle("当前状态: 仅预览");
@@ -118,6 +119,13 @@ void MainWindow::on_chagneStorePath_triggered()
     if (!dir.isEmpty()) {
         GL.setStoreDir(dir);
         ui->statusbar->showMessage(QString("存储位置: %1").arg(dir));
+    }
+}
+
+void MainWindow::on_actionCopyOriginPixmap_triggered()
+{
+    if (hisImage.isNull() == false) {
+        clipboard->setPixmap(hisImage);
     }
 }
 

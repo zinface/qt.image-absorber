@@ -41,6 +41,7 @@ public slots:
     void slotOnRequestPreviewImage(QPixmap pixmap);
     void slotOnRequestSaveImage();
     void on_chagneStorePath_triggered();
+    void on_actionCopyOriginPixmap_triggered();
     void on_onlyPreview_stateChanged(int arg1);
 
     // QWidget interface
