@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.5.1)
 
-project(image-absorber LANGUAGES CXX VERSION 1.0.0)
+project(image-absorber LANGUAGES CXX VERSION 1.1.0)
 
 include(cmake/SparkEnvConfig.cmake)
 include(cmake/SparkMacrosConfig.cmake)
